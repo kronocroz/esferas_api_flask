@@ -52,17 +52,29 @@ def buscar_por_nit():
     # Seleccionar columnas desde D04 en adelante
     columnas_d04_en_adelante = [col for col in df_ordenado.columns if col >= "D04"]
 
-    # Aplicar el filtro: dejar solo columnas donde los valores no sean 3
-    datos_filtrados = []
-    for _, fila in df_ordenado.iterrows():
-        fila_resultado = {
-            "Nit": fila["Nit"],
-            "Cod": fila["Cod"],
-            "Suc": fila["Suc"]
-        }
-        for col in columnas_d04_en_adelante:
-            if fila[col] != 3:
-                fila_resultado[col] = fila[col]
-        datos_filtrados.append(fila_resultado)
+    # Agrupar por Cod
+    resultado_final = {}
 
-    return jsonify(datos_filtrados)
+    for _, fila in df_ordenado.iterrows():
+        cod = fila["Cod"]
+        suc = fila["Suc"]
+
+        # Inicializar grupo si no existe
+        if cod not in resultado_final:
+            resultado_final[cod] = {
+                "Cod": cod,
+                "Sucursales": []
+            }
+
+        # Procesar datos de D04 en adelante (solo si ≠ 3)
+        datos_sucursal = {"Suc": suc}
+        for col in columnas_d04_en_adelante:
+            valor = fila[col]
+            if pd.notnull(valor) and valor != 3:
+                datos_sucursal[col] = valor
+
+        resultado_final[cod]["Sucursales"].append(datos_sucursal)
+
+    # Convertir a lista para jsonify
+    return jsonify(list(resultado_final.values()))
+
