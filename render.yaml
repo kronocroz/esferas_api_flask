@@ -1,8 +1,7 @@
 services:
   - type: web
-    name: api-ventas
+    name: mi-api-flask
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python app.py"
     plan: free
-    envVars: []
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
