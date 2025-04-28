@@ -32,49 +32,51 @@ if __name__ == "__main__":
 
 @app.route("/buscar_por_nit", methods=["GET"])
 def buscar_por_nit():
-    nit = request.args.get("nit")
-    if not nit:
-        return jsonify({"error": "Debes proporcionar un NIT para buscar"}), 400
+    try:
+        nit = request.args.get("nit")
+        if not nit:
+            return jsonify({"error": "Debes proporcionar un NIT para buscar"}), 400
 
-    conn = sqlite3.connect("ventas.db")
-    df = pd.read_sql_query("SELECT * FROM ventas", conn)
-    conn.close()
+        conn = sqlite3.connect("ventas.db")
+        df = pd.read_sql_query("SELECT * FROM ventas", conn)
+        conn.close()
 
-    # Filtrar por NIT y Año 2025
-    df_filtrado = df[(df["Nit"] == nit) & (df["Año"] == 2025)]
+        # Filtrar por NIT y Año 2025
+        df_filtrado = df[(df["Nit"] == nit) & (df["Año"] == 2025)]
 
-    if df_filtrado.empty:
-        return jsonify([])
+        if df_filtrado.empty:
+            return jsonify([])
 
-    # Ordenar por Cod y Suc
-    df_ordenado = df_filtrado.sort_values(by=["Cod", "Suc"])
+        # Ordenar por Cod y Suc
+        df_ordenado = df_filtrado.sort_values(by=["Cod", "Suc"])
 
-    # Seleccionar columnas desde D04 en adelante
-    columnas_d04_en_adelante = [col for col in df_ordenado.columns if col >= "D04"]
+        # Seleccionar columnas desde D04 en adelante
+        columnas_d04_en_adelante = [col for col in df_ordenado.columns if col >= "D04"]
 
-    # Agrupar por Cod
-    resultado_final = {}
+        # Agrupar por Cod
+        resultado_final = {}
 
-    for _, fila in df_ordenado.iterrows():
-        cod = fila["Cod"]
-        suc = fila["Suc"]
+        for _, fila in df_ordenado.iterrows():
+            cod = fila["Cod"]
+            suc = fila["Suc"]
 
-        # Inicializar grupo si no existe
-        if cod not in resultado_final:
-            resultado_final[cod] = {
-                "Cod": cod,
-                "Sucursales": []
-            }
+            if cod not in resultado_final:
+                resultado_final[cod] = {
+                    "Cod": cod,
+                    "Sucursales": []
+                }
 
-        # Procesar datos de D04 en adelante (solo si ≠ 3)
-        datos_sucursal = {"Suc": suc}
-        for col in columnas_d04_en_adelante:
-            valor = fila[col]
-            if pd.notnull(valor) and valor != 3:
-                datos_sucursal[col] = valor
+            datos_sucursal = {"Suc": suc}
+            for col in columnas_d04_en_adelante:
+                valor = fila[col]
+                if pd.notnull(valor) and valor != 3:
+                    datos_sucursal[col] = valor
 
-        resultado_final[cod]["Sucursales"].append(datos_sucursal)
+            resultado_final[cod]["Sucursales"].append(datos_sucursal)
 
-    # Convertir a lista para jsonify
-    return jsonify(list(resultado_final.values()))
+        return jsonify(list(resultado_final.values()))
+
+    except Exception as e:
+        # Captura el error y lo muestra
+        return jsonify({"error": str(e)}), 500
 
