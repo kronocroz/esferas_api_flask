@@ -40,13 +40,29 @@ def buscar_por_nit():
     df = pd.read_sql_query("SELECT * FROM ventas", conn)
     conn.close()
 
-    # Filtrar por NIT
-    df_filtrado = df[df["Nit"] == nit]
+    # Filtrar por NIT y Año 2025
+    df_filtrado = df[(df["Nit"] == nit) & (df["Año"] == 2025)]
 
-    # Ordenar primero por 'Cod' y luego por 'Suc'
+    if df_filtrado.empty:
+        return jsonify([])
+
+    # Ordenar por Cod y Suc
     df_ordenado = df_filtrado.sort_values(by=["Cod", "Suc"])
 
-    # Convertir a lista de diccionarios
-    resultado = df_ordenado.to_dict(orient="records")
+    # Seleccionar columnas desde D04 en adelante
+    columnas_d04_en_adelante = [col for col in df_ordenado.columns if col >= "D04"]
 
-    return jsonify(resultado)
+    # Aplicar el filtro: dejar solo columnas donde los valores no sean 3
+    datos_filtrados = []
+    for _, fila in df_ordenado.iterrows():
+        fila_resultado = {
+            "Nit": fila["Nit"],
+            "Cod": fila["Cod"],
+            "Suc": fila["Suc"]
+        }
+        for col in columnas_d04_en_adelante:
+            if fila[col] != 3:
+                fila_resultado[col] = fila[col]
+        datos_filtrados.append(fila_resultado)
+
+    return jsonify(datos_filtrados)
