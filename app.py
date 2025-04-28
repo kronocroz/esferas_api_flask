@@ -33,7 +33,6 @@ def ventas_vendedor():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ENDPOINT 2: Buscar filas por NIT y mostrar columnas dinámicas
 @app.route("/buscar_por_nit", methods=["GET"])
 def buscar_por_nit():
     try:
@@ -60,11 +59,11 @@ def buscar_por_nit():
             for col in columnas_principales:
                 fila_resultado[col] = fila[col]
 
-            # Desde la séptima columna en adelante, solo incluir si el valor es diferente de 0
+            # Desde la séptima columna en adelante, solo incluir si el valor es diferente de 3
             columnas_dinamicas = df.columns[6:]
             for col in columnas_dinamicas:
                 valor = fila[col]
-                if pd.notnull(valor) and valor != 0:
+                if pd.notnull(valor) and valor != 3:
                     fila_resultado[col] = valor
 
             resultados.append(fila_resultado)
@@ -73,6 +72,7 @@ def buscar_por_nit():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 # Configuración para correr en Render
 if __name__ == "__main__":
