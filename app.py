@@ -56,16 +56,24 @@ def buscar_por_nit():
         if df_filtrado.empty:
             return jsonify([])
 
+        # Diccionario de traducción actualizado con íconos
+        nombres_grupo = {
+            3: "Dptos sin Venta 🔴",
+            4: "Dptos perdidos ⚫ ",
+            5: "Dptos Venta estable 🟢 ",
+            6: "Dptos venta recuperadas o nuevas ✅"
+        }
+
         resultados = []
         for _, fila in df_filtrado.iterrows():
             fila_resultado = OrderedDict()
 
-            # --- Paso 1: agregar primero las columnas principales ---
+            # Agregar primero las columnas principales
             columnas_principales = df.columns[:6]
             for col in columnas_principales:
                 fila_resultado[col] = fila[col]
 
-            # --- Paso 2: agrupar dinámicamente ---
+            # Agrupar dinámicamente
             columnas_dinamicas = df.columns[6:]
             agrupado = {}
 
@@ -77,16 +85,14 @@ def buscar_por_nit():
                         agrupado[valor] = []
                     agrupado[valor].append(col)
 
-            # --- Paso 3: añadir agrupaciones ordenadas ---
+            # Añadir agrupaciones con nombres en lugar de números
             for valor in sorted(agrupado.keys()):
-                fila_resultado[str(valor)] = agrupado[valor]
+                nombre = nombres_grupo.get(valor, f"Grupo {valor}")
+                fila_resultado[nombre] = agrupado[valor]
 
             resultados.append(fila_resultado)
 
-        # Convertimos manualmente a JSON string respetando el orden
         respuesta_json = json.dumps(resultados, ensure_ascii=False, indent=2)
-
-        # Devolver como respuesta tipo "application/json" pero manualmente
         return app.response_class(respuesta_json, mimetype="application/json")
 
     except Exception as e:
