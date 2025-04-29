@@ -101,24 +101,21 @@ def buscar_por_nit():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ENDPOINT 3 BUSCAR X RAZON SOCIAL 
 @app.route('/buscar_cliente', methods=['GET'])
 def buscar_cliente():
     try:
-        # Capturar parámetro nombre
         nombre = request.args.get('nombre')
         if not nombre:
             return jsonify({"error": "Parámetro 'nombre' es obligatorio"}), 400
 
-        # Tipo de búsqueda: 'all' (todas las palabras) o 'any' (cualquiera)
-        tipo_busqueda = request.args.get('tipo', 'all')
+        tipo_busqueda = request.args.get('tipo', 'all')  # 'all' o 'any'
         operador = " AND " if tipo_busqueda == 'all' else " OR "
 
-        # Procesar palabras clave
         palabras = nombre.strip().lower().split()
         if not palabras:
             return jsonify({"error": "No se ingresaron palabras relevantes"}), 400
 
-        # Condiciones dinámicas para buscar en 'Razon Social'
         condiciones = [
             "REPLACE(REPLACE(LOWER(`Razon Social`), '-', ''), '/', '') LIKE ?"
             for _ in palabras
@@ -126,68 +123,75 @@ def buscar_cliente():
         condicion_final = operador.join(condiciones)
         parametros = [f"%{p.replace('-', '').replace('/', '')}%" for p in palabras]
 
-        # Conexión a la base de datos
         conn = sqlite3.connect('ventas.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Construir consulta SQL
-        query = f"""
-            SELECT *, 
-                CASE
-                    WHEN LOWER(`Razon Social`) = ? THEN 1
-                    WHEN LOWER(`Razon Social`) LIKE ? THEN 2
-                    ELSE 3
-                END AS prioridad
+        # Buscar todos los registros que coincidan con el nombre (máx 5 NIT distintos)
+        param_orden = nombre.lower()
+        cursor.execute(f"""
+            SELECT DISTINCT `Nit`
             FROM ventas
             WHERE {condicion_final}
-            ORDER BY prioridad ASC, `Razon Social` ASC
-            LIMIT 20
-        """
+            LIMIT 5
+        """, parametros)
+        nits = [row["Nit"] for row in cursor.fetchall()]
 
-        # Ejecutar consulta
-        param_orden = nombre.lower()
-        cursor.execute(query, [param_orden, f"%{param_orden}%"] + parametros)
-        filas = cursor.fetchall()
-        conn.close()
-
-        # Construir resultados
-        resultados = []
-        for row in filas:
-            razon_social = row["Razon Social"]
-            nit = row["Nit"]
-            cod = row["Cod"]
-            suc = row["Suc"]
-            vendedor = row["Vendedor"]
-            year = row["year"]
-
-            resultado_texto = (
-                f"Cliente: {razon_social}\n"
-                f"NIT: {nit}\n"
-                f"Código: {cod}\n"
-                f"Sucursal: {suc}\n"
-                f"Vendedor: {vendedor}\n"
-                f"Año: {year}"
-            )
-
-            resultados.append({
-                "Resultado": resultado_texto,
-                "Razon Social": razon_social,
-                "Nit": nit,
-                "Cod": cod,
-                "Suc": suc,
-                "Vendedor": vendedor,
-                "year": year
-            })
-
-        # Devolver resultados
-        if resultados:
-            return jsonify(resultados)
-        else:
+        if not nits:
             return jsonify({"mensaje": "No se encontraron coincidencias"}), 404
+
+        # Diccionario de traducción de valores con íconos
+        nombres_grupo = {
+            3: "Dptos sin Venta (🔴 esfera roja)",
+            4: "Dptos perdidos (⚫ esfera negra)",
+            5: "Dptos Venta estable (🟢 esfera verde)",
+            6: "Dptos venta recuperadas o nuevas (✅🟢 esfera verde con check)"
+        }
+
+        resultados = []
+
+        for nit in nits:
+            cursor.execute("SELECT * FROM ventas WHERE Nit = ?", (nit,))
+            filas = cursor.fetchall()
+
+            for fila in filas:
+                fila_resultado = OrderedDict()
+
+                # Datos principales
+                fila_resultado["Cod"] = fila["Cod"]
+                fila_resultado["Nit"] = fila["Nit"]
+                fila_resultado["Razon Social"] = fila["Razon Social"]
+                fila_resultado["Suc"] = fila["Suc"]
+                fila_resultado["Vendedor"] = fila["Vendedor"]
+                fila_resultado["year"] = fila["year"]
+
+                # Agrupar columnas dinámicas
+                agrupado = {}
+                columnas_dinamicas = fila.keys()[6:]  # desde la séptima en adelante
+                for col in columnas_dinamicas:
+                    valor = fila[col]
+                    if pd.notnull(valor):
+                        valor = int(valor)
+                        nombre_col = col.lstrip("D")  # eliminar letra D
+                        if valor not in agrupado:
+                            agrupado[valor] = []
+                        agrupado[valor].append(nombre_col)
+
+                for valor in sorted(agrupado.keys()):
+                    nombre = nombres_grupo.get(valor, f"Grupo {valor}")
+                    fila_resultado[nombre] = agrupado[valor]
+
+                resultados.append(fila_resultado)
+
+        conn.close()
+        return app.response_class(
+            json.dumps(resultados, ensure_ascii=False, indent=2),
+            mimetype="application/json"
+        )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+        
 # Configuración para correr en Render
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
