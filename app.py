@@ -104,18 +104,21 @@ def buscar_por_nit():
 @app.route('/buscar_cliente', methods=['GET'])
 def buscar_cliente():
     try:
+        # Capturar parámetro nombre
         nombre = request.args.get('nombre')
         if not nombre:
             return jsonify({"error": "Parámetro 'nombre' es obligatorio"}), 400
 
-        tipo_busqueda = request.args.get('tipo', 'all')  # 'all' o 'any'
+        # Tipo de búsqueda: 'all' (todas las palabras) o 'any' (cualquiera)
+        tipo_busqueda = request.args.get('tipo', 'all')
         operador = " AND " if tipo_busqueda == 'all' else " OR "
 
+        # Procesar palabras clave
         palabras = nombre.strip().lower().split()
         if not palabras:
             return jsonify({"error": "No se ingresaron palabras relevantes"}), 400
 
-        # Armamos condiciones dinámicas para buscar en Razon Social
+        # Condiciones dinámicas para buscar en 'Razon Social'
         condiciones = [
             "REPLACE(REPLACE(LOWER(`Razon Social`), '-', ''), '/', '') LIKE ?"
             for _ in palabras
@@ -123,10 +126,12 @@ def buscar_cliente():
         condicion_final = operador.join(condiciones)
         parametros = [f"%{p.replace('-', '').replace('/', '')}%" for p in palabras]
 
+        # Conexión a la base de datos
         conn = sqlite3.connect('ventas.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
+        # Construir consulta SQL
         query = f"""
             SELECT *, 
                 CASE
@@ -136,16 +141,17 @@ def buscar_cliente():
                 END AS prioridad
             FROM ventas
             WHERE {condicion_final}
-            ORDER BY prioridad ASC
+            ORDER BY prioridad ASC, `Razon Social` ASC
             LIMIT 20
         """
 
-        # Parámetros de ordenación + búsqueda
+        # Ejecutar consulta
         param_orden = nombre.lower()
         cursor.execute(query, [param_orden, f"%{param_orden}%"] + parametros)
         filas = cursor.fetchall()
         conn.close()
 
+        # Construir resultados
         resultados = []
         for row in filas:
             razon_social = row["Razon Social"]
@@ -174,6 +180,7 @@ def buscar_cliente():
                 "year": year
             })
 
+        # Devolver resultados
         if resultados:
             return jsonify(resultados)
         else:
@@ -181,8 +188,6 @@ def buscar_cliente():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 # Configuración para correr en Render
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
