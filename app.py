@@ -101,6 +101,88 @@ def buscar_por_nit():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/buscar_cliente', methods=['GET'])
+def buscar_cliente():
+    try:
+        nombre = request.args.get('nombre')
+        if not nombre:
+            return jsonify({"error": "Parámetro 'nombre' es obligatorio"}), 400
+
+        tipo_busqueda = request.args.get('tipo', 'all')  # 'all' o 'any'
+        operador = " AND " if tipo_busqueda == 'all' else " OR "
+
+        palabras = nombre.strip().lower().split()
+        if not palabras:
+            return jsonify({"error": "No se ingresaron palabras relevantes"}), 400
+
+        # Armamos condiciones dinámicas para buscar en Razon Social
+        condiciones = [
+            "REPLACE(REPLACE(LOWER(`Razon Social`), '-', ''), '/', '') LIKE ?"
+            for _ in palabras
+        ]
+        condicion_final = operador.join(condiciones)
+        parametros = [f"%{p.replace('-', '').replace('/', '')}%" for p in palabras]
+
+        conn = sqlite3.connect('ventas.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        query = f"""
+            SELECT *, 
+                CASE
+                    WHEN LOWER(`Razon Social`) = ? THEN 1
+                    WHEN LOWER(`Razon Social`) LIKE ? THEN 2
+                    ELSE 3
+                END AS prioridad
+            FROM ventas
+            WHERE {condicion_final}
+            ORDER BY prioridad ASC
+            LIMIT 20
+        """
+
+        # Parámetros de ordenación + búsqueda
+        param_orden = nombre.lower()
+        cursor.execute(query, [param_orden, f"%{param_orden}%"] + parametros)
+        filas = cursor.fetchall()
+        conn.close()
+
+        resultados = []
+        for row in filas:
+            razon_social = row["Razon Social"]
+            nit = row["Nit"]
+            cod = row["Cod"]
+            suc = row["Suc"]
+            vendedor = row["Vendedor"]
+            year = row["year"]
+
+            resultado_texto = (
+                f"Cliente: {razon_social}\n"
+                f"NIT: {nit}\n"
+                f"Código: {cod}\n"
+                f"Sucursal: {suc}\n"
+                f"Vendedor: {vendedor}\n"
+                f"Año: {year}"
+            )
+
+            resultados.append({
+                "Resultado": resultado_texto,
+                "Razon Social": razon_social,
+                "Nit": nit,
+                "Cod": cod,
+                "Suc": suc,
+                "Vendedor": vendedor,
+                "year": year
+            })
+
+        if resultados:
+            return jsonify(resultados)
+        else:
+            return jsonify({"mensaje": "No se encontraron coincidencias"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Configuración para correr en Render
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
