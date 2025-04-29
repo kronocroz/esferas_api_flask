@@ -33,6 +33,7 @@ def ventas_vendedor():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ENDPOINT 2 Buscar x Nit
 @app.route("/buscar_por_nit", methods=["GET"])
 def buscar_por_nit():
     try:
@@ -54,24 +55,24 @@ def buscar_por_nit():
         for _, fila in df_filtrado.iterrows():
             fila_resultado = {}
 
-            # Agregar las primeras 6 columnas completas
+            # --- Paso 1: Agregar las primeras 6 columnas completas ---
             columnas_principales = df.columns[:6]
             for col in columnas_principales:
                 fila_resultado[col] = fila[col]
 
-            # Desde la séptima columna en adelante, agrupar por valor
+            # --- Paso 2: Agrupar columnas dinámicas por su valor ---
             columnas_dinamicas = df.columns[6:]
             agrupado = {}
 
             for col in columnas_dinamicas:
                 valor = fila[col]
                 if pd.notnull(valor):
-                    valor = int(valor)  # Asegurar que sea número entero
+                    valor = int(valor)  # Asegurar que sea entero
                     if valor not in agrupado:
                         agrupado[valor] = []
                     agrupado[valor].append(col)
 
-            # Añadir el agrupado al resultado
+            # --- Paso 3: Añadir agrupado al final ---
             for valor, columnas in agrupado.items():
                 fila_resultado[str(valor)] = columnas
 
@@ -81,7 +82,6 @@ def buscar_por_nit():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 # Configuración para correr en Render
