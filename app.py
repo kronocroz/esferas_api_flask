@@ -36,9 +36,6 @@ def ventas_vendedor():
         return jsonify({"error": str(e)}), 500
 
 # ENDPOINT 2 Buscar x Nit
-from collections import OrderedDict
-import json
-
 @app.route("/buscar_por_nit", methods=["GET"])
 def buscar_por_nit():
     try:
@@ -59,8 +56,8 @@ def buscar_por_nit():
         # Diccionario de traducción actualizado con íconos
         nombres_grupo = {
             3: "Dptos sin Venta 🔴",
-            4: "Dptos perdidos ⚫ ",
-            5: "Dptos Venta estable 🟢 ",
+            4: "Dptos perdidos ⚫",
+            5: "Dptos Venta estable 🟢",
             6: "Dptos venta recuperadas o nuevas ✅"
         }
 
@@ -83,7 +80,10 @@ def buscar_por_nit():
                     valor = int(valor)
                     if valor not in agrupado:
                         agrupado[valor] = []
-                    agrupado[valor].append(col)
+                    
+                    # 🔥 Aquí limpiamos la "D" del nombre de columna
+                    nombre_limpio = col.lstrip('D')  # elimina la letra D solo si está al principio
+                    agrupado[valor].append(nombre_limpio)
 
             # Añadir agrupaciones con nombres en lugar de números
             for valor in sorted(agrupado.keys()):
@@ -94,6 +94,9 @@ def buscar_por_nit():
 
         respuesta_json = json.dumps(resultados, ensure_ascii=False, indent=2)
         return app.response_class(respuesta_json, mimetype="application/json")
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
