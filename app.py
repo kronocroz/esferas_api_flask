@@ -59,12 +59,21 @@ def buscar_por_nit():
             for col in columnas_principales:
                 fila_resultado[col] = fila[col]
 
-            # Desde la séptima columna en adelante, solo incluir si el valor es diferente de 3
+            # Desde la séptima columna en adelante, agrupar por valor
             columnas_dinamicas = df.columns[6:]
+            agrupado = {}
+
             for col in columnas_dinamicas:
                 valor = fila[col]
-                if pd.notnull(valor) and valor != 3:
-                    fila_resultado[col] = valor
+                if pd.notnull(valor):
+                    valor = int(valor)  # Asegurar que sea número entero
+                    if valor not in agrupado:
+                        agrupado[valor] = []
+                    agrupado[valor].append(col)
+
+            # Añadir el agrupado al resultado
+            for valor, columnas in agrupado.items():
+                fila_resultado[str(valor)] = columnas
 
             resultados.append(fila_resultado)
 
@@ -72,6 +81,7 @@ def buscar_por_nit():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 # Configuración para correr en Render
