@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import sqlite3
 import pandas as pd
+from collections import OrderedDict
 
 app = Flask(__name__)
 
@@ -53,28 +54,28 @@ def buscar_por_nit():
 
         resultados = []
         for _, fila in df_filtrado.iterrows():
-            fila_resultado = {}
+            fila_resultado = OrderedDict()
 
-            # --- Paso 1: Agregar las primeras 6 columnas completas ---
+            # --- Paso 1: agregar primero las columnas principales ---
             columnas_principales = df.columns[:6]
             for col in columnas_principales:
                 fila_resultado[col] = fila[col]
 
-            # --- Paso 2: Agrupar columnas dinámicas por su valor ---
+            # --- Paso 2: agrupar dinámicamente ---
             columnas_dinamicas = df.columns[6:]
             agrupado = {}
 
             for col in columnas_dinamicas:
                 valor = fila[col]
                 if pd.notnull(valor):
-                    valor = int(valor)  # Asegurar que sea entero
+                    valor = int(valor)
                     if valor not in agrupado:
                         agrupado[valor] = []
                     agrupado[valor].append(col)
 
-            # --- Paso 3: Añadir agrupado al final ---
-            for valor, columnas in agrupado.items():
-                fila_resultado[str(valor)] = columnas
+            # --- Paso 3: agregar los valores dinámicos ordenadamente ---
+            for valor in sorted(agrupado.keys()):
+                fila_resultado[str(valor)] = agrupado[valor]
 
             resultados.append(fila_resultado)
 
