@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import sqlite3
 import pandas as pd
 from collections import OrderedDict
+import json
 
 app = Flask(__name__)
 
@@ -35,6 +36,9 @@ def ventas_vendedor():
         return jsonify({"error": str(e)}), 500
 
 # ENDPOINT 2 Buscar x Nit
+from collections import OrderedDict
+import json
+
 @app.route("/buscar_por_nit", methods=["GET"])
 def buscar_por_nit():
     try:
@@ -73,17 +77,20 @@ def buscar_por_nit():
                         agrupado[valor] = []
                     agrupado[valor].append(col)
 
-            # --- Paso 3: agregar los valores dinámicos ordenadamente ---
+            # --- Paso 3: añadir agrupaciones ordenadas ---
             for valor in sorted(agrupado.keys()):
                 fila_resultado[str(valor)] = agrupado[valor]
 
             resultados.append(fila_resultado)
 
-        return jsonify(resultados)
+        # Convertimos manualmente a JSON string respetando el orden
+        respuesta_json = json.dumps(resultados, ensure_ascii=False, indent=2)
+
+        # Devolver como respuesta tipo "application/json" pero manualmente
+        return app.response_class(respuesta_json, mimetype="application/json")
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # Configuración para correr en Render
 if __name__ == "__main__":
