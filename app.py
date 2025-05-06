@@ -191,6 +191,30 @@ def buscar_cliente():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ENDPOINT 4: Buscar clientes únicos por Cod
+@app.route("/clientes_por_cod", methods=["GET"])
+def clientes_por_cod():
+    try:
+        cod = request.args.get("cod")
+        if not cod:
+            return jsonify({"error": "Parámetro 'cod' es obligatorio"}), 400
+
+        conn = sqlite3.connect("ventas.db")
+        df = pd.read_sql_query("SELECT Cod, Nit, `Razon Social` FROM ventas", conn)
+        conn.close()
+
+        # Filtrar por Cod (conversión segura)
+        df_filtrado = df[df["Cod"].astype(str) == str(cod)]
+
+        # Eliminar duplicados por Nit y Razon Social
+        df_unicos = df_filtrado[["Nit", "Razon Social"]].drop_duplicates()
+
+        return jsonify(df_unicos.to_dict(orient="records"))
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
         
 # Configuración para correr en Render
 if __name__ == "__main__":
