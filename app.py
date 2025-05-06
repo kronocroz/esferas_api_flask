@@ -232,53 +232,53 @@ def clientes_por_departamento():
         if not depto or not esfera:
             return jsonify({"error": "Se requiere 'departamento' y 'esfera'"}), 400
 
-        # Normalizar valores
-        columna = f"D{int(depto):02d}"  # ejemplo: 76 → D76
+        # Normalizar entrada
+        columna = f"D{int(depto):02d}"
         valor_esfera = int(esfera)
         cod_vendedor = int(cod) if cod else None
 
-        # Diccionario visual
+        # Validar esfera permitida
         mapa_esferas = {
             3: "esfera roja (🔴)",
             4: "esfera negra (⚫)",
             5: "esfera verde (🟢)",
             6: "esfera verde con check (✅)"
         }
-        descripcion = mapa_esferas.get(valor_esfera, f"esfera tipo {valor_esfera}")
+
+        if valor_esfera not in mapa_esferas:
+            return jsonify({
+                "error": f"Valor de esfera inválido: {valor_esfera}. Solo se permiten: 3 (roja), 4 (negra), 5 (verde), 6 (verde con check)"
+            }), 400
 
         conn = sqlite3.connect("ventas.db")
         df = pd.read_sql_query("SELECT * FROM ventas", conn)
         conn.close()
 
         if columna not in df.columns:
-            return jsonify({"error": f"Departamento '{columna}' no encontrado en columnas"}), 400
+            return jsonify({"error": f"Departamento '{columna}' no existe"}), 400
 
-        # Convertir columna a entero antes de filtrar
         df[columna] = pd.to_numeric(df[columna], errors="coerce").fillna(0).astype(int)
-
-        # Filtrar por esfera
         df_filtrado = df[df[columna] == valor_esfera]
 
-        # Filtro opcional por código de vendedor
         if cod_vendedor is not None:
             df_filtrado = df_filtrado[df_filtrado["Cod"].astype(str) == str(cod_vendedor)]
 
         if df_filtrado.empty:
             return jsonify([])
 
-        # Formatear resultado
         resultado = []
         for _, row in df_filtrado.iterrows():
             resultado.append({
                 "Nit": row["Nit"],
                 "Razon_Social": row["Razon Social"],
-                "Esfera": descripcion
+                "Esfera": mapa_esferas[valor_esfera]
             })
 
         return jsonify(resultado)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
        
 # Configuración para correr en Render
