@@ -221,7 +221,50 @@ def clientes_por_cod():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+#ENDPOINT 5 BUSCAR CLIENTES X DPTOS
+@app.route("/clientes_por_departamento", methods=["GET"])
+def clientes_por_departamento():
+    try:
+        departamento = request.args.get("departamento")
+        esfera = request.args.get("esfera")
 
+        if not departamento or not esfera:
+            return jsonify({"error": "Parámetros 'departamento' y 'esfera' son obligatorios"}), 400
+
+        # Normalizar nombre de columna (ej. 80 → D80)
+        if not departamento.startswith("D"):
+            departamento = f"D{departamento}"
+
+        # Diccionario de equivalencias de esferas
+        equivalencias = {
+            "3": 3, "roja": 3, "esfera roja": 3,
+            "4": 4, "negra": 4, "esfera negra": 4,
+            "5": 5, "verde": 5, "esfera verde": 5,
+            "6": 6, "verde check": 6, "esfera verde check": 6,
+        }
+
+        esfera_valor = equivalencias.get(esfera.lower().strip())
+        if esfera_valor is None:
+            return jsonify({"error": "Esfera inválida. Usa: roja, negra, verde, verde check o 3-6"}), 400
+
+        # Cargar datos
+        conn = sqlite3.connect("ventas.db")
+        df = pd.read_sql_query("SELECT `Nit`, `Razon Social`, `Cod`, `Suc`, `Vendedor`, `year`, * FROM ventas", conn)
+        conn.close()
+
+        if departamento not in df.columns:
+            return jsonify({"error": f"Departamento {departamento} no existe en la base de datos"}), 400
+
+        # Filtrar por el valor de la esfera en la columna del departamento
+        df_filtrado = df[df[departamento] == esfera_valor]
+
+        # Devolver información única por cliente-sucursal
+        df_resultado = df_filtrado[["Nit", "Razon Social", "Cod", "Suc", "Vendedor", "year"]].drop_duplicates()
+
+        return jsonify(df_resultado.to_dict(orient="records"))
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
         
 # Configuración para correr en Render
 if __name__ == "__main__":
