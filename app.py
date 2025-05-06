@@ -222,22 +222,20 @@ def clientes_por_cod():
         return jsonify({"error": str(e)}), 500
 
 #ENDPOINT 5 BUSCAR CLIENTES X DPTOS
-@app.route("/clientes_por_departamento", methods=["GET"])
-def clientes_por_departamento():
+@app.route("/sucursales_por_nit", methods=["GET"])
+def sucursales_por_nit():
     try:
+        nit = request.args.get("nit")
         depto = request.args.get("departamento")
-        esfera = request.args.get("esfera")
         cod = request.args.get("cod")
 
-        if not depto or not esfera:
-            return jsonify({"error": "Se requiere 'departamento' y 'esfera'"}), 400
+        if not nit or not depto:
+            return jsonify({"error": "Se requiere 'nit' y 'departamento'"}), 400
 
-        # Normalizar entrada
-        columna = f"D{int(depto):02d}"
-        valor_esfera = int(esfera)
+        columna_dpto = f"D{int(depto):02d}"
         cod_vendedor = int(cod) if cod else None
 
-        # Validar esfera permitida
+        # Validación de mapa de esferas
         mapa_esferas = {
             3: "esfera roja (🔴)",
             4: "esfera negra (⚫)",
@@ -245,20 +243,17 @@ def clientes_por_departamento():
             6: "esfera verde con check (✅)"
         }
 
-        if valor_esfera not in mapa_esferas:
-            return jsonify({
-                "error": f"Valor de esfera inválido: {valor_esfera}. Solo se permiten: 3 (roja), 4 (negra), 5 (verde), 6 (verde con check)"
-            }), 400
-
+        # Cargar base de datos
         conn = sqlite3.connect("ventas.db")
         df = pd.read_sql_query("SELECT * FROM ventas", conn)
         conn.close()
 
-        if columna not in df.columns:
-            return jsonify({"error": f"Departamento '{columna}' no existe"}), 400
+        if columna_dpto not in df.columns:
+            return jsonify({"error": f"Departamento '{columna_dpto}' no encontrado"}), 400
 
-        df[columna] = pd.to_numeric(df[columna], errors="coerce").fillna(0).astype(int)
-        df_filtrado = df[df[columna] == valor_esfera]
+        # Conversión y filtros
+        df[columna_dpto] = pd.to_numeric(df[columna_dpto], errors="coerce").fillna(0).astype(int)
+        df_filtrado = df[df["Nit"] == nit]
 
         if cod_vendedor is not None:
             df_filtrado = df_filtrado[df_filtrado["Cod"].astype(str) == str(cod_vendedor)]
@@ -268,13 +263,22 @@ def clientes_por_departamento():
 
         resultado = []
         for _, row in df_filtrado.iterrows():
+            valor = row[columna_dpto]
+            if valor not in mapa_esferas:
+                continue
+
             resultado.append({
                 "Nit": row["Nit"],
                 "Razon_Social": row["Razon Social"],
-                "Esfera": mapa_esferas[valor_esfera]
+                "Suc": row["Suc"],
+                "Cod": row["Cod"],
+                "Esfera": mapa_esferas[valor]
             })
 
         return jsonify(resultado)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
