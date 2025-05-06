@@ -225,45 +225,61 @@ def clientes_por_cod():
 @app.route("/clientes_por_departamento", methods=["GET"])
 def clientes_por_departamento():
     try:
-        departamento = request.args.get("departamento")
+        depto = request.args.get("departamento")
         esfera = request.args.get("esfera")
         cod = request.args.get("cod")
 
-        if not departamento or not esfera:
-            return jsonify({"error": "Debe especificar 'departamento' y 'esfera'"}), 400
+        if not depto or not esfera:
+            return jsonify({"error": "Se requiere 'departamento' y 'esfera'"}), 400
 
-        departamento = departamento.upper().strip()
-        if not departamento.startswith("D"):
-            departamento = f"D{departamento}"  # Ej: 76 → D76
+        # Normalizar valores
+        columna = f"D{int(depto):02d}"  # ejemplo: 76 → D76
+        valor_esfera = int(esfera)
+        cod_vendedor = int(cod) if cod else None
 
-        try:
-            esfera = int(esfera)
-        except ValueError:
-            return jsonify({"error": "El valor de 'esfera' debe ser un número entero"}), 400
-
-        if cod:
-            try:
-                cod = float(cod)  # Cod en BD es float64
-            except ValueError:
-                return jsonify({"error": "El valor de 'cod' debe ser numérico"}), 400
+        # Diccionario visual
+        mapa_esferas = {
+            3: "esfera roja (🔴)",
+            4: "esfera negra (⚫)",
+            5: "esfera verde (🟢)",
+            6: "esfera verde con check (✅)"
+        }
+        descripcion = mapa_esferas.get(valor_esfera, f"esfera tipo {valor_esfera}")
 
         conn = sqlite3.connect("ventas.db")
-        df = pd.read_sql_query("SELECT `Cod`, `Nit`, `Razon Social`, `{}` FROM ventas".format(departamento), conn)
+        df = pd.read_sql_query("SELECT * FROM ventas", conn)
         conn.close()
 
-        df[departamento] = pd.to_numeric(df[departamento], errors="coerce").fillna(0).astype(int)
+        if columna not in df.columns:
+            return jsonify({"error": f"Departamento '{columna}' no encontrado en columnas"}), 400
 
-        if cod is not None:
-            df = df[df["Cod"] == cod]
+        # Convertir columna a entero antes de filtrar
+        df[columna] = pd.to_numeric(df[columna], errors="coerce").fillna(0).astype(int)
 
-        df_filtrado = df[df[departamento] == esfera]
-        df_filtrado = df_filtrado[["Nit", "Razon Social"]].drop_duplicates()
+        # Filtrar por esfera
+        df_filtrado = df[df[columna] == valor_esfera]
 
-        resultados = df_filtrado.to_dict(orient="records")
-        return jsonify(resultados)
+        # Filtro opcional por código de vendedor
+        if cod_vendedor is not None:
+            df_filtrado = df_filtrado[df_filtrado["Cod"].astype(str) == str(cod_vendedor)]
+
+        if df_filtrado.empty:
+            return jsonify([])
+
+        # Formatear resultado
+        resultado = []
+        for _, row in df_filtrado.iterrows():
+            resultado.append({
+                "Nit": row["Nit"],
+                "Razon_Social": row["Razon Social"],
+                "Esfera": descripcion
+            })
+
+        return jsonify(resultado)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
        
 # Configuración para correr en Render
 if __name__ == "__main__":
