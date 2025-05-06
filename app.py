@@ -197,23 +197,30 @@ def buscar_cliente():
 def clientes_por_cod():
     try:
         cod = request.args.get("cod")
-        if not cod:
+        if cod is None:
             return jsonify({"error": "Parámetro 'cod' es obligatorio"}), 400
+
+        # Convertir el parámetro a entero
+        try:
+            cod_int = int(float(cod))
+        except ValueError:
+            return jsonify({"error": "El parámetro 'cod' debe ser un número"}), 400
 
         conn = sqlite3.connect("ventas.db")
         df = pd.read_sql_query("SELECT Cod, Nit, `Razon Social` FROM ventas", conn)
         conn.close()
 
-        # Filtrar por Cod (conversión segura)
-        df_filtrado = df[df["Cod"].astype(str) == str(cod)]
+        # Convertir Cod a entero antes de filtrar
+        df["Cod"] = df["Cod"].astype("Int64")  # admite nulos
+        df_filtrado = df[df["Cod"] == cod_int]
 
-        # Eliminar duplicados por Nit y Razon Social
         df_unicos = df_filtrado[["Nit", "Razon Social"]].drop_duplicates()
 
         return jsonify(df_unicos.to_dict(orient="records"))
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
         
 # Configuración para correr en Render
