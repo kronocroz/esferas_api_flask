@@ -227,59 +227,44 @@ def clientes_por_departamento():
     try:
         departamento = request.args.get("departamento")
         esfera = request.args.get("esfera")
-        cod = request.args.get("cod")  # opcional
+        cod = request.args.get("cod")
 
         if not departamento or not esfera:
-            return jsonify({"error": "Parámetros 'departamento' y 'esfera' son obligatorios"}), 400
+            return jsonify({"error": "Debe especificar 'departamento' y 'esfera'"}), 400
 
-        # Normalizar nombre del departamento
+        departamento = departamento.upper().strip()
         if not departamento.startswith("D"):
-            departamento = f"D{departamento}"
+            departamento = f"D{departamento}"  # Ej: 76 → D76
 
-        # Equivalencias de esferas
-        equivalencias = {
-            "3": 3, "roja": 3, "esfera roja": 3,
-            "4": 4, "negra": 4, "esfera negra": 4,
-            "5": 5, "verde": 5, "esfera verde": 5,
-            "6": 6, "verde check": 6, "esfera verde check": 6,
-        }
+        try:
+            esfera = int(esfera)
+        except ValueError:
+            return jsonify({"error": "El valor de 'esfera' debe ser un número entero"}), 400
 
-        esfera_valor = equivalencias.get(esfera.lower().strip())
-        if esfera_valor is None:
-            return jsonify({"error": "Esfera inválida. Usa: 3, 4, 5, 6 o valores como 'roja', 'verde'."}), 400
+        if cod:
+            try:
+                cod = float(cod)  # Cod en BD es float64
+            except ValueError:
+                return jsonify({"error": "El valor de 'cod' debe ser numérico"}), 400
 
-        # Conexión y lectura
         conn = sqlite3.connect("ventas.db")
-        df = pd.read_sql_query("SELECT `Cod`, `Nit`, `Razon Social`, * FROM ventas", conn)
+        df = pd.read_sql_query("SELECT `Cod`, `Nit`, `Razon Social`, `{}` FROM ventas".format(departamento), conn)
         conn.close()
 
-        if departamento not in df.columns:
-            return jsonify({"error": f"Departamento {departamento} no existe"}), 400
+        df[departamento] = pd.to_numeric(df[departamento], errors="coerce").fillna(0).astype(int)
 
-        # Convertir columna a int (por si tiene valores tipo 3.0)
-        df[departamento] = pd.to_numeric(df[departamento], errors="coerce").dropna().astype("Int64")
-
-        # Filtro por valor de esfera
-        df_filtrado = df[df[departamento] == esfera_valor]
-
-        # Filtro por código si fue proporcionado
         if cod is not None:
-            try:
-                cod_int = int(float(cod))
-                df_filtrado["Cod"] = df_filtrado["Cod"].astype("Int64")
-                df_filtrado = df_filtrado[df_filtrado["Cod"] == cod_int]
-            except ValueError:
-                return jsonify({"error": "El parámetro 'cod' debe ser numérico"}), 400
+            df = df[df["Cod"] == cod]
 
-        # Obtener solo Nit y Razon Social únicos
-        resultado = df_filtrado[["Nit", "Razon Social"]].drop_duplicates()
+        df_filtrado = df[df[departamento] == esfera]
+        df_filtrado = df_filtrado[["Nit", "Razon Social"]].drop_duplicates()
 
-        return jsonify(resultado.to_dict(orient="records"))
+        resultados = df_filtrado.to_dict(orient="records")
+        return jsonify(resultados)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-        
+       
 # Configuración para correr en Render
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
