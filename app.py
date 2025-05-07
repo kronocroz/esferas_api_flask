@@ -196,16 +196,17 @@ def buscar_cliente():
 @app.route("/buscar_por_cod", methods=["GET"])
 def buscar_por_cod():
     try:
-        cod = request.args.get("cod")
+        # Verificar los posibles parámetros
+        cod = request.args.get("cod") or request.args.get("asesor") or request.args.get("vendedor") or request.args.get("codigo")
 
         if not cod:
-            return jsonify({"error": "Debes proporcionar un código de vendedor (cod)"}), 400
+            return jsonify({"error": "Debes proporcionar un código de vendedor (cod, asesor, vendedor o codigo)"}), 400
 
         try:
             # Convertir a entero para evitar conflictos de tipo
             cod_int = int(cod)
         except ValueError:
-            return jsonify({"error": "El parámetro 'cod' debe ser un número entero"}), 400
+            return jsonify({"error": "El parámetro debe ser un número entero"}), 400
 
         conn = sqlite3.connect("ventas.db")
         cursor = conn.cursor()
@@ -232,6 +233,7 @@ def buscar_por_cod():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 #ENDPOINT 5 BUSCAR CLIENTES X DPTOS
