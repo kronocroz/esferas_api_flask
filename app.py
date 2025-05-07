@@ -193,33 +193,46 @@ def buscar_cliente():
         return jsonify({"error": str(e)}), 500
 
 # ENDPOINT 4: Buscar clientes únicos por Cod
-@app.route("/clientes_por_cod", methods=["GET"])
-def clientes_por_cod():
+@app.route("/buscar_por_cod", methods=["GET"])
+def buscar_por_cod():
     try:
         cod = request.args.get("cod")
-        if cod is None:
-            return jsonify({"error": "Parámetro 'cod' es obligatorio"}), 400
 
-        # Convertir el parámetro a entero
+        if not cod:
+            return jsonify({"error": "Debes proporcionar un código de vendedor (cod)"}), 400
+
         try:
-            cod_int = int(float(cod))
+            # Convertir a entero para evitar conflictos de tipo
+            cod_int = int(cod)
         except ValueError:
-            return jsonify({"error": "El parámetro 'cod' debe ser un número"}), 400
+            return jsonify({"error": "El parámetro 'cod' debe ser un número entero"}), 400
 
         conn = sqlite3.connect("ventas.db")
-        df = pd.read_sql_query("SELECT Cod, Nit, `Razon Social` FROM ventas", conn)
+        cursor = conn.cursor()
+
+        # Consulta ajustada para asegurar coincidencias exactas
+        query = """
+            SELECT DISTINCT Nit, `Razon Social`
+            FROM ventas
+            WHERE CAST(Cod AS INTEGER) = ?
+            ORDER BY `Razon Social` ASC
+        """
+        cursor.execute(query, (cod_int,))
+        filas = cursor.fetchall()
         conn.close()
 
-        # Convertir Cod a entero antes de filtrar
-        df["Cod"] = df["Cod"].astype("Int64")  # admite nulos
-        df_filtrado = df[df["Cod"] == cod_int]
+        # Si no hay resultados
+        if not filas:
+            return jsonify({"mensaje": "No se encontraron coincidencias para el código proporcionado"}), 404
 
-        df_unicos = df_filtrado[["Nit", "Razon Social"]].drop_duplicates()
+        # Formatear la respuesta
+        resultados = [{"Nit": fila[0], "Razon_Social": fila[1]} for fila in filas]
 
-        return jsonify(df_unicos.to_dict(orient="records"))
+        return jsonify(resultados)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 #ENDPOINT 5 BUSCAR CLIENTES X DPTOS
 @app.route("/sucursales_por_nit", methods=["GET"])
