@@ -237,42 +237,42 @@ def buscar_por_cod():
 
 
 #ENDPOINT 5 BUSCAR CLIENTES X DPTOS
-@app.route("/sucursales_por_nit", methods=["GET"])
-def sucursales_por_nit():
+@app.route("/sucursales_por_cod", methods=["GET"])
+def sucursales_por_cod():
     try:
-        nit = request.args.get("nit")
-        departamento = request.args.get("departamento")
         cod = request.args.get("cod")
+        departamento = request.args.get("departamento")
+        esfera = request.args.get("esfera")
 
-        if not nit or not departamento:
-            return jsonify({"error": "Parámetros 'nit' y 'departamento' son obligatorios"}), 400
+        # Validación de parámetros obligatorios
+        if not cod or not departamento or not esfera:
+            return jsonify({"error": "Parámetros 'cod', 'departamento' y 'esfera' son obligatorios"}), 400
 
+        # Validación de los parámetros numéricos
         try:
             departamento_int = int(departamento)
+            esfera_int = int(esfera)
         except ValueError:
-            return jsonify({"error": "El parámetro 'departamento' debe ser un número entero"}), 400
+            return jsonify({"error": "Los parámetros 'departamento' y 'esfera' deben ser números enteros"}), 400
+
+        # Validar que la esfera esté en el rango permitido
+        if esfera_int not in [3, 4, 5, 6]:
+            return jsonify({"error": "El parámetro 'esfera' debe ser 3 (Roja), 4 (Negra), 5 (Verde), o 6 (Verde Check)"}), 400
+
+        # Convertir el departamento a formato DXX
+        departamento_col = f"D{str(departamento_int).zfill(2)}"
 
         conn = sqlite3.connect("ventas.db")
         cursor = conn.cursor()
 
-        # Ajustar la consulta para devolver todos los resultados que cumplan el criterio
-        query = """
-            SELECT DISTINCT Nit, `Razon Social`, Suc, Cod, D{} 
+        # Consulta SQL
+        query = f"""
+            SELECT DISTINCT Nit, `Razon Social`, Suc, Cod 
             FROM ventas
-            WHERE Nit = ?
-        """.format(departamento_int)
+            WHERE CAST(Cod AS INTEGER) = ? AND {departamento_col} = ?
+        """
 
-        params = [nit]
-
-        if cod:
-            try:
-                cod_int = int(cod)
-                query += " AND CAST(Cod AS INTEGER) = ?"
-                params.append(cod_int)
-            except ValueError:
-                return jsonify({"error": "El parámetro 'cod' debe ser un número entero"}), 400
-
-        cursor.execute(query, params)
+        cursor.execute(query, (cod, esfera_int))
         filas = cursor.fetchall()
         conn.close()
 
@@ -280,41 +280,21 @@ def sucursales_por_nit():
         if not filas:
             return jsonify({"mensaje": "No se encontraron coincidencias"}), 404
 
-        # Diccionario de esferas
-        esfera_map = {
-            3: "Roja (🔴)",
-            4: "Negra (⚫)",
-            5: "Verde (🟢)",
-            6: "Verde Check (✅)"
-        }
-
         # Formatear la respuesta
-        resultados = []
-        for fila in filas:
-            nit, razon_social, suc, cod, esfera_valor = fila
-
-            # Verificar que el valor no sea nulo
-            if esfera_valor is not None:
-                try:
-                    esfera_valor = int(esfera_valor)
-                    esfera_estado = esfera_map.get(esfera_valor, f"Estado {esfera_valor}")
-                except ValueError:
-                    esfera_estado = "Desconocido"
-
-                resultados.append({
-                    "Nit": nit,
-                    "Razon_Social": razon_social,
-                    "Suc": suc,
-                    "Cod": cod,
-                    "Esfera": esfera_estado
-                })
+        resultados = [
+            {
+                "Nit": fila[0],
+                "Razon_Social": fila[1],
+                "Suc": fila[2],
+                "Cod": fila[3]
+            }
+            for fila in filas
+        ]
 
         return jsonify(resultados)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
        
 # Configuración para correr en Render
