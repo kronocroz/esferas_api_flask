@@ -241,62 +241,79 @@ def buscar_por_cod():
 def sucursales_por_nit():
     try:
         nit = request.args.get("nit")
-        depto = request.args.get("departamento")
+        departamento = request.args.get("departamento")
         cod = request.args.get("cod")
 
-        if not nit or not depto:
-            return jsonify({"error": "Se requiere 'nit' y 'departamento'"}), 400
+        if not nit or not departamento:
+            return jsonify({"error": "Parámetros 'nit' y 'departamento' son obligatorios"}), 400
 
-        columna_dpto = f"D{int(depto):02d}"
-        cod_vendedor = int(cod) if cod else None
+        try:
+            departamento_int = int(departamento)
+        except ValueError:
+            return jsonify({"error": "El parámetro 'departamento' debe ser un número entero"}), 400
 
-        # Validación de mapa de esferas
-        mapa_esferas = {
-            3: "esfera roja (🔴)",
-            4: "esfera negra (⚫)",
-            5: "esfera verde (🟢)",
-            6: "esfera verde con check (✅)"
-        }
-
-        # Cargar base de datos
         conn = sqlite3.connect("ventas.db")
-        df = pd.read_sql_query("SELECT * FROM ventas", conn)
+        cursor = conn.cursor()
+
+        # Ajustar la consulta para devolver todos los resultados que cumplan el criterio
+        query = """
+            SELECT DISTINCT Nit, `Razon Social`, Suc, Cod, D{} 
+            FROM ventas
+            WHERE Nit = ?
+        """.format(departamento_int)
+
+        params = [nit]
+
+        if cod:
+            try:
+                cod_int = int(cod)
+                query += " AND CAST(Cod AS INTEGER) = ?"
+                params.append(cod_int)
+            except ValueError:
+                return jsonify({"error": "El parámetro 'cod' debe ser un número entero"}), 400
+
+        cursor.execute(query, params)
+        filas = cursor.fetchall()
         conn.close()
 
-        if columna_dpto not in df.columns:
-            return jsonify({"error": f"Departamento '{columna_dpto}' no encontrado"}), 400
+        # Si no hay resultados
+        if not filas:
+            return jsonify({"mensaje": "No se encontraron coincidencias"}), 404
 
-        # Conversión y filtros
-        df[columna_dpto] = pd.to_numeric(df[columna_dpto], errors="coerce").fillna(0).astype(int)
-        df_filtrado = df[df["Nit"] == nit]
+        # Diccionario de esferas
+        esfera_map = {
+            3: "Roja (🔴)",
+            4: "Negra (⚫)",
+            5: "Verde (🟢)",
+            6: "Verde Check (✅)"
+        }
 
-        if cod_vendedor is not None:
-            df_filtrado = df_filtrado[df_filtrado["Cod"].astype(str) == str(cod_vendedor)]
+        # Formatear la respuesta
+        resultados = []
+        for fila in filas:
+            nit, razon_social, suc, cod, esfera_valor = fila
 
-        if df_filtrado.empty:
-            return jsonify([])
+            # Verificar que el valor no sea nulo
+            if esfera_valor is not None:
+                try:
+                    esfera_valor = int(esfera_valor)
+                    esfera_estado = esfera_map.get(esfera_valor, f"Estado {esfera_valor}")
+                except ValueError:
+                    esfera_estado = "Desconocido"
 
-        resultado = []
-        for _, row in df_filtrado.iterrows():
-            valor = row[columna_dpto]
-            if valor not in mapa_esferas:
-                continue
+                resultados.append({
+                    "Nit": nit,
+                    "Razon_Social": razon_social,
+                    "Suc": suc,
+                    "Cod": cod,
+                    "Esfera": esfera_estado
+                })
 
-            resultado.append({
-                "Nit": row["Nit"],
-                "Razon_Social": row["Razon Social"],
-                "Suc": row["Suc"],
-                "Cod": row["Cod"],
-                "Esfera": mapa_esferas[valor]
-            })
-
-        return jsonify(resultado)
+        return jsonify(resultados)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
        
